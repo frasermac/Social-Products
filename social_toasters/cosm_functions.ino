@@ -1,5 +1,6 @@
 void cosmSocketSub(long feed, int stream, String token){
 
+  Serial.println("cosmSocketSub");
   client.println("{");
   client.println("\"method\" : \"subscribe\",");
   client.print("\"resource\" : \"/feeds/");
@@ -25,6 +26,7 @@ void cosmSocketSub(long feed, int stream, String token){
 
 void cosmToasterPut(int input0, int input1, int input2, int input3, int input4){
 
+  Serial.println("cosmToasterPut");  
   client.println("{");
   client.println("\"method\" : \"put\",");
   client.print("\"resource\" : \"/feeds/");
@@ -88,8 +90,10 @@ void cosmToasterPut(int input0, int input1, int input2, int input3, int input4){
 
 }
 
+// cosmSocketPut takes a datastream number and a float value and puts it to the toaster's feed
 void cosmSocketPut(int stream, float data){
-
+  
+  Serial.println("cosmSocketPut");
   client.println("{");
   client.println("\"method\" : \"put\",");
   client.print("\"resource\" : \"/feeds/");
@@ -120,7 +124,8 @@ void cosmSocketPut(int stream, float data){
 }
 
 void cosmSocketGet(long feed){
-
+  
+  Serial.println("cosmSocketGet");
   client.println("{");
   client.println("\"method\" : \"get\",");
   client.print("\"resource\" : \"/feeds/");
@@ -139,11 +144,12 @@ void cosmSocketGet(long feed){
 
 }
 
+// checkConnection() sends a fake update to the toaster's feed every 'check200Interval' milliseconds
 void checkConnection(){
-  //send fake update every check200Interval
+
   if(millis() - lastAttempMillis > check200Interval){
-    lastAttempMillis = millis();
     cosmSocketPut(4, int(random(20)));
+    lastAttempMillis = millis();
   }
   
   // if didn't get 200 in 5 tries

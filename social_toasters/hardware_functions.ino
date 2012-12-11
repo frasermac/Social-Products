@@ -1,3 +1,4 @@
+// WiFlyStartup() initiates the WiFly modules at boot
 void WiFlyStartup(){
 
   //wdt_enable(WDTO_8S); // start WDT to 8 secs
@@ -34,6 +35,7 @@ void WiFlyStartup(){
 
 }
 
+// forceReset() brings the rest pin to ground, which restarts the Arduino
 void forceReset(){
   Serial.println(F("lost connection to Cosm too long, try reseting...."));
   delay(500);
