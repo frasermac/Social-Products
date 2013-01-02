@@ -41,3 +41,12 @@ void forceReset(){
   delay(500);
   pinMode(resetPin, OUTPUT);
 }
+
+void readSD(){
+  
+  
+  
+  
+}
+
+
