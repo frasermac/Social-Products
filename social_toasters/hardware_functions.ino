@@ -44,7 +44,7 @@ void forceReset(){
   
   Serial.println(F("lost connection to Cosm too long, try reseting...."));
   delay(500);
-  pinMode(resetPin, OUTPUT);
+  pinMode(arduinoResetPin, OUTPUT);
   
 }
 
