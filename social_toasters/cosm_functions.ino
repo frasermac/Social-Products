@@ -24,6 +24,28 @@ void cosmSocketSub(long feed, int stream, String token){
 
 }
 
+void cosmHistGet(){
+
+  Serial.println("cosmSocketGet");
+  client.println("{");
+  client.println("\"method\" : \"get\",");
+  client.print("\"resource\" : \"/feeds/91258/datastreams/5.json?start=2013-01-01T10:30:48Z&duration=1seconds&find_previous=true");
+
+
+  client.println("\",");
+  client.println("\"headers\" :");
+  client.println("{");
+  client.print("\"X-PachubeApiKey\" : \"");
+  client.print(API); 
+  client.println("\"");
+  client.println("},");
+  client.print("\"token\" : \"");
+  client.print("getSchedule");
+  client.println("\"");
+  client.println("}");
+
+}
+
 void cosmToasterPut(int input0, int input1, int input2, int input3, int input4){
 
   Serial.println("cosmToasterPut");  
@@ -91,13 +113,13 @@ void cosmToasterPut(int input0, int input1, int input2, int input3, int input4){
 }
 
 // cosmSocketPut takes a datastream number and a float value and puts it to the toaster's feed
-void cosmSocketPut(int stream, float data){
-  
+void cosmSocketPut(long feed, int stream, float data){
+
   //Serial.println("cosmSocketPut");
   client.println("{");
   client.println("\"method\" : \"put\",");
   client.print("\"resource\" : \"/feeds/");
-  client.print(localFeedID);
+  client.print(feed);
   client.println("\",");
   client.println("\"params\" : {},");
   client.print("\"headers\" : {\"X-PachubeApiKey\":\"");       
@@ -125,7 +147,7 @@ void cosmSocketPut(int stream, float data){
 
 
 void cosmSocketGet(long feed, int stream){
-  
+
   Serial.println("cosmSocketGet");
   client.println("{");
   client.println("\"method\" : \"get\",");
@@ -155,10 +177,11 @@ void cosmSocketGet(long feed, int stream){
 void checkConnection(){
 
   if(millis() - lastAttempMillis > check200Interval){
-    cosmSocketPut(4, int(random(20)));
+    cosmSocketPut(localFeedID, 0, totalUsage);
+    Serial.print(F("+"));
     lastAttempMillis = millis();
   }
-  
+
   // if didn't get 200 in 5 tries
   if(millis() - last200Millis > check200Interval*5){
     forceReset();
@@ -166,10 +189,18 @@ void checkConnection(){
 }
 
 
-void startUp(){
-  
-  
-  
-  
+void fakeToast(){
+
+  if(millis() - fakeToastMillis > fakeToastInterval){
+    fakeToastMillis = millis();
+    totalUsage ++;
+    cosmSocketPut(localFeedID, 0, totalUsage);
+    Serial.print(F("toasting, total usage = "));
+    Serial.println(totalUsage);
+    lastAttempMillis = millis();
+  } 
+
 }
+
+
 

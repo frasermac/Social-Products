@@ -1,14 +1,14 @@
 #include <SPI.h>
 #include <WiFly.h>
 
-int toasterID = 2;
-char ssid[] = "CEL2"; // network name
-char passphrase[] = "j3llyf1sh"; // password
-#define REMOTE_FEED_DATASTREAMS 4
+int toasterID = 0;
+boolean report = false;
+
+
+
 long toasterFeed[5] = {
   91258, 91259, 91260, 91261, 91262}; 
 
-long serverFeedID = 91254;
 long localFeedID = toasterFeed[toasterID];
 
 String API = "o9DJZaSWEcrSlqJjuwrJLCVpcN2SAKxXcmkrVUc1Q2c0TT0g";
@@ -18,6 +18,11 @@ WiFlyClient client;
 float value;
 int streamID; 
 int totalUsage = 0;
+int localTotalUsage = 0;
+int remoteTotalUsage = 0;
+#define SIZE 300
+int usageTrack[SIZE];
+
 //pin assigning
 int resetPin = 3;
 
@@ -29,22 +34,21 @@ boolean clientConnected = false;
 boolean found200 = false;
 char *found;
 int pointer = 0;
-float remoteData[REMOTE_FEED_DATASTREAMS];
-
-
 
 int wiflyFailure = 0; // to count how many faliure of connecting to network
 int maxWiflyFailure  = 5;
 
 long lastAttempMillis = millis();
-
 long last200Millis = millis();
 long check200Interval = 15*1000;
+
+long fakeToastMillis = millis();
+long fakeToastInterval = 5*1000;
+
 int state = 0; 
 int failure = 0;
-int lastYY, lastMM, lastDD, lastHH, lastMN, lastSS;
-int currentYY, currentMM, currentDD, currentHH, currentMN, currentSS; 
-
+int happiness = 0;
+int prevHappiness = 0;
 
 void setup(){
   Serial.begin(9600);
@@ -52,17 +56,16 @@ void setup(){
   delay(5000);
 
   readSD(); // read netwrok config from SD card
-
+  setupServo();
   WiFlyStartup(); //start wiFly and connecting to network, also check for error and force reset
-
 
 }
 
 void loop(){
 
   switch(state){
-  case 0: // just started
-    // open connection to cosm
+  case 0: // open connection to cosm
+
     Serial.print(F("connecting..."));
     if (client.connect("beta.pachube.com", 8081)) {
       Serial.print(F("success.."));
@@ -88,14 +91,14 @@ void loop(){
 
   case 1:
     // ask for last total usage (stream 0)
-    cosmSocketGet(localFeedID,0);
+    cosmSocketGet(localFeedID,0); 
     Serial.println(F("getting last total usage.."));
     delay(1000);
     lastAttempMillis = millis();
     state ++;
     break;
 
-  case 2:
+  case 2: // and wait for result (check in decoder)
 
     if(millis() - lastAttempMillis > 5000){
       Serial.println(F("waiting too long, asking again"));
@@ -109,13 +112,13 @@ void loop(){
     break;
 
   case 3: // sent subscription
-    cosmSocketSub(serverFeedID,-1,"getEverything");
+    cosmSocketSub(localFeedID,4,"happynessSub");
     Serial.println(F("sent subscription to cosm.."));
     lastAttempMillis = millis();
     state ++;
     break;
 
-  case 4:
+  case 4: // and wait for 200 ok (check in decoder)
     if(millis() - lastAttempMillis > 5000){
       Serial.println(F("waiting too long, asking again"));
       state --;
@@ -133,8 +136,10 @@ void loop(){
     break;
 
   case 6: // main loop
-    
-    //checkConnection();
+
+    mainLoop();
+
+
     break;
 
 
@@ -143,13 +148,33 @@ void loop(){
 
 
 
-
   while (client.available()) {
-    //char c = client.read();
-    //Serial.print(c); 
     checkResponse();
   }
+
 }
+
+
+void mainLoop(){
+
+
+  checkConnection();
+  fakeToast();
+  moveServo();
+  
+  if(prevHappiness != happiness){
+    if(happiness < prevHappiness){
+      startServo(2);
+    }
+    prevHappiness = happiness; 
+  }
+
+
+
+}
+
+
+
 
 
 
