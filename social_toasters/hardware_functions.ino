@@ -1,6 +1,10 @@
 // WiFlyStartup() initiates the WiFly modules at boot
 void WiFlyStartup(){
-
+  
+  
+  char ssid[] = "CEL2"; // network name
+  char passphrase[] = "j3llyf1sh"; // password
+  
   //wdt_enable(WDTO_8S); // start WDT to 8 secs
   Serial.println(F("WiFly begin"));
   WiFly.begin();    // startup the WiFly
@@ -37,7 +41,29 @@ void WiFlyStartup(){
 
 // forceReset() brings the rest pin to ground, which restarts the Arduino
 void forceReset(){
+  
   Serial.println(F("lost connection to Cosm too long, try reseting...."));
   delay(500);
   pinMode(resetPin, OUTPUT);
+  
 }
+
+void readSD(){
+  Serial.println(F("reading from SD card.."));
+  localTotalUsage = 0;
+//  for(int k=0; k<SIZE; k++){
+//   usageTrack[k] = 0; 
+//  }
+//  ssid[] = "CEL2";
+//  passphrase[] = "j3llyf1sh";
+  Serial.println(F("done"));
+}
+
+void leverControl(int mode){
+  
+ 
+}
+
+
+
+
