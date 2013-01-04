@@ -2,12 +2,13 @@
 #include <WiFly.h>
 
 int toasterID = 0;
-char ssid[] = "CEL2"; // network name
-char passphrase[] = "j3llyf1sh"; // password
-#define REMOTE_FEED_DATASTREAMS 4
-long toasterFeed[5] = {91258, 91259, 91260, 91261, 91262}; 
+boolean report = false;
 
-long serverFeedID = 91254;
+
+
+long toasterFeed[5] = {
+  91258, 91259, 91260, 91261, 91262}; 
+
 long localFeedID = toasterFeed[toasterID];
 
 String API = "o9DJZaSWEcrSlqJjuwrJLCVpcN2SAKxXcmkrVUc1Q2c0TT0g";
@@ -17,6 +18,11 @@ WiFlyClient client;
 float value;
 int streamID; 
 int totalUsage = 0;
+int localTotalUsage = 0;
+int remoteTotalUsage = 0;
+#define SIZE 300
+int usageTrack[SIZE];
+
 //pin assigning
 int resetPin = 3;
 
@@ -28,78 +34,150 @@ boolean clientConnected = false;
 boolean found200 = false;
 char *found;
 int pointer = 0;
-float remoteData[REMOTE_FEED_DATASTREAMS];
-
-
 
 int wiflyFailure = 0; // to count how many faliure of connecting to network
 int maxWiflyFailure  = 5;
 
-long timeLastUpdated = 0; //millis of last attemp to connect to cosm
-long lastPutMillis = millis();
-
 long lastAttempMillis = millis();
 long last200Millis = millis();
 long check200Interval = 15*1000;
-boolean gotLastTotalUsage = false; 
+
+long fakeToastMillis = millis();
+long fakeToastInterval = 5*1000;
+
 int state = 0; 
-// 0 = just started, 
-// 1 = sent request for last total usage, 
-// 2 = got last total usage, sent subscription, 
-// 3 = got 200 ok from the subscription, ready for main loop
+int failure = 0;
+int happiness = 0;
+int prevHappiness = 0;
 
 void setup(){
   Serial.begin(9600);
   Serial.println(F("starting up"));
   delay(5000);
-  WiFlyStartup(); //start wifLy and connecting to network, also check for error and force reset
-  
-  
 
-  Serial.print(F("connecting..."));
-  if (client.connect("beta.pachube.com", 8081)) {
-    Serial.print(F("success.."));
-    delay(1000);
-    cosmSocketSub(serverFeedID,-1,"getCommand"); // subscribe to stream 10
+  readSD(); // read netwrok config from SD card
+  setupServo();
+  WiFlyStartup(); //start wiFly and connecting to network, also check for error and force reset
 
-    //pachubeSubscribe(ROOMBASCHEDULE, "getSchedule"); // stream -1 means follow the whole feed
-    Serial.println(F("wait 2 sec for feedback"));
-
-    delay(2000);
-    timeLastUpdated = millis();
-    last200Millis = millis();
-  } 
-  else {
-    Serial.println("failed");
-  }
-  
-  
 }
 
 void loop(){
-  
-  
-  
-//  if(millis() - lastPutMillis > 5000){
-//    lastPutMillis = millis();
-//    totalUsage ++;
-//    Serial.println(F("putting"));
-//    
-//   //cosmSocketPut(FEEDID, 1, random(5)); 
-//   //cosmSocketGet(FEEDID);
-//   //cosmToasterPut(totalUsage, totalUsage*2, totalUsage*3, totalUsage*4, totalUsage*5);
-//   cosmSocketPut(4, int(random(20)));
-//  }
 
-  checkConnection();
-  
-  
+  switch(state){
+  case 0: // open connection to cosm
+
+    Serial.print(F("connecting..."));
+    if (client.connect("beta.pachube.com", 8081)) {
+      Serial.print(F("success.."));
+      delay(1000);
+      state ++;
+      failure = 0;
+      lastAttempMillis = millis();
+      last200Millis = millis();
+    } 
+    else {
+      failure ++;
+      Serial.println(F("failed.."));
+      Serial.println(failure);
+      if(failure > 5){
+        forceReset();
+      }
+      Serial.println(F("wait 5 secs, then try again"));
+      delay(5000);
+
+    }
+
+    break;
+
+  case 1:
+    // ask for last total usage (stream 0)
+    cosmSocketGet(localFeedID,0); 
+    Serial.println(F("getting last total usage.."));
+    delay(1000);
+    lastAttempMillis = millis();
+    state ++;
+    break;
+
+  case 2: // and wait for result (check in decoder)
+
+    if(millis() - lastAttempMillis > 5000){
+      Serial.println(F("waiting too long, asking again"));
+      state --;
+      failure ++;
+      if(failure > 10){
+        forceReset();
+      }
+    }
+
+    break;
+
+  case 3: // sent subscription
+    cosmSocketSub(localFeedID,4,"happynessSub");
+    Serial.println(F("sent subscription to cosm.."));
+    lastAttempMillis = millis();
+    state ++;
+    break;
+
+  case 4: // and wait for 200 ok (check in decoder)
+    if(millis() - lastAttempMillis > 5000){
+      Serial.println(F("waiting too long, asking again"));
+      state --;
+      failure ++;
+      if(failure > 10){
+        forceReset();
+      }
+    }
+    break;
+
+  case 5: // compare and adjust local and online value
+    adjustValue();
+    Serial.println(F("adjust var completed, starting main loop"));
+    state ++;
+    break;
+
+  case 6: // main loop
+
+    mainLoop();
+
+
+    break;
+
+
+  }
+
+
+
+
   while (client.available()) {
-    //char c = client.read();
-    //Serial.print(c); 
     checkResponse();
   }
+
 }
+
+
+void mainLoop(){
+
+
+  checkConnection();
+  fakeToast();
+  moveServo();
+  
+  if(prevHappiness != happiness){
+    if(happiness < prevHappiness){
+      startServo(2);
+    }
+    prevHappiness = happiness; 
+  }
+
+
+
+}
+
+
+
+
+
+
 
 
 
