@@ -27,7 +27,7 @@ void checkResponse(){
     found = strstr(buff, "current_value");
     if (found != 0){
       foundCurrentV = true; 
-      value = buffToInt(17, (pointer-2) - 17 );
+      tempRemotevalue = buffToInt(17, (pointer-2) - 17 );
     }
 
 
@@ -41,17 +41,17 @@ void checkResponse(){
           Serial.print(F("id = ")); 
           Serial.print(streamID); 
           Serial.print(F("  currentValue = "));  
-          Serial.println(value);
+          Serial.println(tempRemotevalue);
         }
         
-        if(streamID == 4){
-          happiness = value;
+        if(streamID == happinessStream){
+          happiness = tempRemotevalue;
           Serial.print(F("happiness = "));
           Serial.println(happiness);
         }
 
         if(state == 2 && streamID == 0){
-          remoteTotalUsage = value;
+          remoteTotalUsage = tempRemotevalue;
           Serial.print(F("received last total usage:"));
           Serial.println(remoteTotalUsage);
           state ++; 

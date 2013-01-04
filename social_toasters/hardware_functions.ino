@@ -64,6 +64,17 @@ void leverControl(int mode){
  
 }
 
+boolean toasterIsBeingUsed(){
+  
+  
+  
+ return false; 
+}
 
-
-
+void cutPower(){
+  // put relay one
+  // delay(500);
+  // out relay off
+  
+  
+}

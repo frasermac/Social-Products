@@ -145,6 +145,46 @@ void cosmSocketPut(long feed, int stream, float data){
 
 }
 
+void cosmSocketPut2(long feed, int stream1, float data1, int stream2, float data2){
+
+  //Serial.println("cosmSocketPut");
+  client.println("{");
+  client.println("\"method\" : \"put\",");
+  client.print("\"resource\" : \"/feeds/");
+  client.print(feed);
+  client.println("\",");
+  client.println("\"params\" : {},");
+  client.print("\"headers\" : {\"X-PachubeApiKey\":\"");       
+  client.print(API);
+  client.println("\"},");
+  client.println("\"body\" :");  
+  client.println("{");
+  client.println("\"version\" : \"1.0.0\",");
+  client.println("\"datastreams\" : [");
+
+  // each stream
+  client.print("{\n\"id\" : \""); 
+  client.print(stream1);
+  client.print("\",\n\"current_value\" : \"");
+  client.print(data1);
+  client.print("\"\n}");
+  
+  client.println(","); // sep 
+  
+  client.print("{\n\"id\" : \""); 
+  client.print(stream2);
+  client.print("\",\n\"current_value\" : \"");
+  client.print(data2);
+  client.print("\"\n}");
+
+  client.println("]");
+  client.println("},");
+  client.println("\"token\" : \"0x12345\"");
+  client.println("}");
+  client.println();
+
+}
+
 
 void cosmSocketGet(long feed, int stream){
 
@@ -177,7 +217,7 @@ void cosmSocketGet(long feed, int stream){
 void checkConnection(){
 
   if(millis() - lastAttempMillis > check200Interval){
-    cosmSocketPut(localFeedID, 0, totalUsage);
+    cosmSocketPut2(localFeedID, 0, totalUsage, 4, happiness);
     Serial.print(F("+"));
     lastAttempMillis = millis();
   }
@@ -194,7 +234,7 @@ void fakeToast(){
   if(millis() - fakeToastMillis > fakeToastInterval){
     fakeToastMillis = millis();
     totalUsage ++;
-    cosmSocketPut(localFeedID, 0, totalUsage);
+    cosmSocketPut2(localFeedID, 0, totalUsage, 4, happiness);
     Serial.print(F("toasting, total usage = "));
     Serial.println(totalUsage);
     lastAttempMillis = millis();
