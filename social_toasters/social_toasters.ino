@@ -1,5 +1,6 @@
 #include <SPI.h>
 #include <WiFly.h>
+#include "EmonLib.h"                   // Include Emon Library
 
 int toasterID = 0;
 char ssid[] = "CEL2"; // network name
@@ -12,14 +13,26 @@ long localFeedID = toasterFeed[toasterID];
 
 String API = "o9DJZaSWEcrSlqJjuwrJLCVpcN2SAKxXcmkrVUc1Q2c0TT0g";
 
+// Instantiations
 WiFlyClient client;
+EnergyMonitor emon1;
 
+// Current monitoring variables
+const int numReadings = 10;
+int index = 0;                  // the index of the current reading
+int total = 0;                  // the running total
+int average = 0;                // the average
+boolean counting = false;
+double currentSense[numReadings];
+
+// More variables
 float value;
 int streamID; 
 int totalUsage = 0;
-//pin assigning
-int resetPin = 3;
 
+// Pin assignments
+int resetPin = 3;
+int coilAnalogInputPin = A1;
 
 // decoding stuffs
 char buff[64]; // incoming data, maximum of each line
@@ -54,7 +67,14 @@ void setup(){
   delay(5000);
   WiFlyStartup(); //start wifLy and connecting to network, also check for error and force reset
   
+  pinMode(coilAnalogInputPin, INPUT); 
   
+  // initialize all the readings to 0: 
+  for (int a = 0; a < numReadings; a++) {
+    currentSense[a] = 0;  
+  }
+  
+  emon1.current(1, 111.1);             // Current: input pin, calibration.
 
   Serial.print(F("connecting..."));
   if (client.connect("beta.pachube.com", 8081)) {
@@ -90,6 +110,35 @@ void loop(){
 //   //cosmToasterPut(totalUsage, totalUsage*2, totalUsage*3, totalUsage*4, totalUsage*5);
 //   cosmSocketPut(4, int(random(20)));
 //  }
+
+
+// Add an element to the current sample array and calculate the average
+  currentSense[index] = emon1.calcIrms(1480);
+  total = 0;  
+  for (int a = 0; a < numReadings; a++) { total += currentSense[a]; }                
+  average = total / numReadings;
+ 
+  if (average >= 20) {
+    if (counting == false) {
+      counting = true;
+      Serial.println("/nBEGINNING TO TOAST/n");
+    }
+  }
+    
+  if (average < 20) {
+   if (counting == true) {
+    counting = false;
+    Serial.println("/nTOAST ENDED/n");
+   }
+  }
+ 
+  index++;
+  if (index >= numReadings) {
+    index = 0;
+  }   
+
+
+
 
   checkConnection();
   
