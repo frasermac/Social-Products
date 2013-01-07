@@ -23,7 +23,6 @@ long lastServoMillis = millis();
 int totalServoFrame = 0; // to be calculated
 int servoFrameCount = 0;
 float servoMoveStep = 0; // to be calculated
-int servoPin = 9;
 boolean servoRunning = false;
 int servoMode;
 
