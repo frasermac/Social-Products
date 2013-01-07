@@ -270,7 +270,9 @@ void checkConnection(){
     else{
       a = 0; 
     }
-    cosmSocketPut3(localFeedID, 0, totalUsage, 4, happiness, 5, a);
+    //cosmSocketPut3(localFeedID, 0, totalUsage, 4, happiness, 5, a);
+    cosmSocketPut2(localFeedID, 0, totalUsage, 5, a);
+
     lastAttempMillis = millis();
   }
 
@@ -280,19 +282,6 @@ void checkConnection(){
   }
 }
 
-
-void fakeToast(){
-
-  if(millis() - fakeToastMillis > fakeToastInterval){
-    fakeToastMillis = millis();
-    totalUsage ++;
-    cosmSocketPut2(localFeedID, 0, totalUsage, 4, happiness);
-    Serial.print(F("toasting, total usage = "));
-    Serial.println(totalUsage);
-    lastAttempMillis = millis();
-  } 
-
-}
 
 
 

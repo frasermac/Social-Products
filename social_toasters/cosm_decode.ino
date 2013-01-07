@@ -28,6 +28,13 @@ void checkResponse(){
     if (found != 0){
       foundCurrentV = true; 
       tempRemoteValue = buffToInt(17, (pointer-2) - 17 );
+      
+      if(state == 8){       // if it is in state 8, only current value we will get is happiness anyway
+        happiness = tempRemoteValue;
+        Serial.print(F("happiness = "));
+        Serial.println(tempRemoteValue);
+        foundCurrentV = false; 
+      }
     }
 
 
@@ -44,18 +51,12 @@ void checkResponse(){
           Serial.println(tempRemoteValue);
         }
 
-        if(streamID == happinessStream){
+        if(state == 4 && streamID == happinessStream){
           happiness = tempRemoteValue;
-          if(state == 4){
-            Serial.print(F("received last happiness = "));
-            Serial.println(tempRemoteValue);
-            state ++; 
-            failure = 0;
-          }
-          else{
-            Serial.print(F("happiness = "));
-            Serial.println(tempRemoteValue);
-          }
+          Serial.print(F("received last happiness = "));
+          Serial.println(tempRemoteValue);
+          state ++; 
+          failure = 0;
         }
 
 

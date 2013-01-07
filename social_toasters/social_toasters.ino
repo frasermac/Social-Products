@@ -3,7 +3,8 @@
 #include "EmonLib.h"                   // Include Emon Library
 
 int toasterID = 0;
-int happinessStream = 3 + toasterID; 
+//int happinessStream = 3 + toasterID; 
+int happinessStream = 4; 
 boolean report = false; // debugging
 
 long toasterFeed[5] = {
@@ -47,6 +48,7 @@ char buff[64]; // incoming data, maximum of each line
 boolean foundCurrentV = false;
 boolean clientConnected = false;
 boolean found200 = false;
+boolean foundHappiness = false;
 char *found;
 int pointer = 0;
 
@@ -57,11 +59,11 @@ unsigned long lastAttempMillis = millis();
 unsigned long last200Millis = millis();
 unsigned long check200Interval = 15000;
 
-unsigned long fakeToastMillis = millis();
-unsigned long fakeToastInterval = 15000;
-
 unsigned long lastEmotionMillis = millis();
 unsigned long emotionInterval = 900000; // 15 mins
+
+unsigned long lastTestMillis = millis();
+unsigned long testInterval = 15000;
 
 int state = 0; 
 int failure = 0;
@@ -73,6 +75,7 @@ int maxResist = 5;
 int resistCount = 0;
 
 int ledMode = 1; // 0-3 0=off, 1=getting network, 2= normal, 3=problemo
+boolean servoRunning = false;
 
 
 
@@ -171,7 +174,7 @@ void loop(){
   case 3:
     ledMode = 1;
     // ask for last happiness from avg feed 
-    cosmSocketGet(avgFeed,happinessStream); 
+    cosmSocketGet(localFeedID,happinessStream); 
     Serial.println(F("getting last happiness.."));
     delay(1000);
     lastAttempMillis = millis();
@@ -193,8 +196,10 @@ void loop(){
 
   case 5: // sent subscription
     ledMode = 1;
-    cosmSocketSub(avgFeed, happinessStream,"happinessSub");
+    cosmSocketSub(localFeedID, happinessStream,"happinessSub1");
     Serial.println(F("sent subscription to cosm.."));
+    //    cosmSocketSub(avgFeed, happinessStream,"happinessSub2");
+    //    Serial.println(F("sent subscription to cosm.."));
     lastAttempMillis = millis();
     state ++;
     break;
@@ -260,17 +265,23 @@ void loop(){
 
 
 void mainLoop(){
-
-  checkCurrent();   //current sensing 
+  if(!servoRunning){ // for some reason we can't run servo and check current at the same time
+    checkCurrent();   //current sensing 
+  }
 
   checkConnection();
-
-  //fakeToast();
 
   if(!toastInProgress){
     moveServo();
     expressEmotion();
   }
+
+//  if(millis() - lastTestMillis > testInterval){
+//    lastTestMillis = millis();
+//    startServo(0);
+//
+//  }
+
 
   if(prevToastInProgress != toastInProgress){
 
@@ -288,7 +299,7 @@ void mainLoop(){
         Serial.print(F("total usage is "));
         Serial.println(totalUsage);
         cosmSocketPut2(localFeedID, 0, totalUsage, 5, 1);
-        
+
       }
 
     }
@@ -302,7 +313,7 @@ void mainLoop(){
   }
 
 
-  
+
 
 
   if(prevHappiness != happiness){
@@ -310,8 +321,10 @@ void mainLoop(){
     maxResist = resistCal();
 
     if(happiness < prevHappiness){
-      startServo(2);
-      lastEmotionMillis = millis();
+      if(!toastInProgress){
+        startServo(2);
+        lastEmotionMillis = millis();
+      }
     }
     prevHappiness = happiness; 
 
@@ -320,6 +333,8 @@ void mainLoop(){
 
 
 }
+
+
 
 
 

@@ -23,7 +23,6 @@ long lastServoMillis = millis();
 int totalServoFrame = 0; // to be calculated
 int servoFrameCount = 0;
 float servoMoveStep = 0; // to be calculated
-boolean servoRunning = false;
 int servoMode;
 
 void setupServo(){
@@ -31,6 +30,7 @@ void setupServo(){
   myservo.attach(servoPin);
   myservo.write(currentServoAngle);
   delay(2000);
+  myservo.detach();
 }
 
 
@@ -49,6 +49,7 @@ void moveServo(){
 
       if(currentServoStep == movement[servoMode][0]){
         servoRunning = false; 
+        myservo.detach();
         if(servoPrint)Serial.println(F("finished"));
       }
       else{
@@ -67,7 +68,7 @@ void moveServo(){
 
   }
 
-
+  //myservo.write(currentServoAngle);
 }
 
 void startServo(int mode){
@@ -77,11 +78,12 @@ void startServo(int mode){
   servoRunning = true; 
   currentServoStep = 0;
   calServo();
-
+  myservo.attach(servoPin);
 }
 
 void stopServo(){
   servoRunning = false; 
+  myservo.detach();
 }
 
 void calServo(){
