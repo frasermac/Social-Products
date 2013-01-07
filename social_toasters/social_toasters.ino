@@ -1,10 +1,10 @@
 #include <SPI.h>
 #include <WiFly.h>
+#include "EmonLib.h"                   // Include Emon Library
 
 int toasterID = 0;
 int happinessStream = 3 + toasterID; 
-boolean report = false;
-
+boolean report = false; // debugging
 
 
 long toasterFeed[5] = {
@@ -15,21 +15,35 @@ long avgFeed = 91254;
 
 String API = "o9DJZaSWEcrSlqJjuwrJLCVpcN2SAKxXcmkrVUc1Q2c0TT0g";
 
+// Instantiations
 WiFlyClient client;
+EnergyMonitor emon1;
 
-float tempRemotevalue;
+
+
+// Current monitoring variables
+const int numReadings = 10;
+int currentCoilIndex = 0;                  // the index of the current reading
+int average = 0;                // the average
+boolean counting = false;
+double currentSense[numReadings];
+boolean toastInProgress = false;
+
+// More variables
 int streamID; 
 int totalUsage = 0;
 int localTotalUsage = 0;
 int remoteTotalUsage = 0;
-#define SIZE 300
-int usageTrack[SIZE];
 
-//pin assigning
-int resetPin = 3;
+
+// Pin assignments
 int ledPin = 5;
+int arduinoResetPin = 3;
+int coilAnalogInputPin = A1;
 
-// decoding stuffs
+
+// JSON Socket Server decoding variables/stuff
+float tempRemoteValue;
 char buff[64]; // incoming data, maximum of each line
 boolean foundCurrentV = false;
 boolean clientConnected = false;
@@ -63,16 +77,46 @@ boolean prevBeingUsed = false;
 boolean beingUsed = false;
 int ledMode = 1; // 0-3 0=off, 1=getting network, 2= normal, 3=problemo
 
+
+
+/*
+// 
+////////////////////////////////////////////////////////////////////////////
+//
+//  Setup loop:
+//    Initializes the serial, current sensing coil, SD card, servo, and
+//    wiFly module
+//
+*/
+
+
 void setup(){
   Serial.begin(9600);
   Serial.println(F("starting up"));
   delay(5000);
-  setupLed(); 
-  readSD(); // read netwrok config from SD card
-  setupServo();
-  WiFlyStartup(); //start wiFly and connecting to network, also check for error and force reset
+
+  setupLed();                // Initialize led pin
+  setupCurrentCoil();        // Initialize the current sensing coil and its averaging array
+  emon1.current(1, 111.1);   // Current: input pin, calibration.
+  readSD();                  // Read the network config from the the SD card
+  setupServo();              // Designate the servo pin and move it to home position
+  WiFlyStartup();            // Start wiFly and connect to the network, also check for error and force reset
 
 }
+
+
+
+/*
+// 
+////////////////////////////////////////////////////////////////////////////
+//
+//  Constant loop:
+//    Switches between states depending on whether the toaster has lost power,
+//    is waiting for a reply, etc.
+//
+//
+*/
+
 
 void loop(){
   
@@ -176,7 +220,37 @@ void loop(){
 }
 
 
+
+
+/*
+// 
+////////////////////////////////////////////////////////////////////////////
+//
+//  void mainLoop():
+//    Switches between states depending on whether the toaster has lost power,
+//    is waiting for a reply, etc.
+//
+//
+*/
+
+
+
+
+
 void mainLoop(){
+
+
+
+
+  currentSense[currentCoilIndex] = emon1.calcIrms(1480);    // Add an element to the current sample array
+  toastInProgress = isToasting();
+ 
+  currentCoilIndex++;
+  if (currentCoilIndex >= numReadings) {
+    currentCoilIndex = 0;
+  }   
+
+
 
 
   checkConnection();
