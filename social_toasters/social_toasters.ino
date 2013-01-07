@@ -188,25 +188,25 @@ void mainLoop(){
   }
   
 
-//  beingUsed = toasterIsBeingUsed();
-//  
-//  if(!prevBeingUsed && beingUsed){
-//
-//    if(resistCount < maxResist){
-//      resistCount ++;
-//      cutPower();
-//    }
-//    else{
-//      resistCount = 0;
-//      totalUsage ++;
-//      cosmSocketPut(localFeedID, 0, totalUsage);
-//      lastAttempMillis = millis();
-//
-//    }
-//    
-//  } 
-//  
-//  prevBeingUsed = beingUsed;
+  beingUsed = toasterIsBeingUsed();
+  
+  if(!prevBeingUsed && beingUsed){
+
+    if(resistCount < maxResist){
+      resistCount ++;
+      cutPower();
+    }
+    else{
+      resistCount = 0;
+      totalUsage ++;
+      cosmSocketPut(localFeedID, 0, totalUsage);
+      lastAttempMillis = millis();
+
+    }
+    
+  } 
+  
+  prevBeingUsed = beingUsed;
 
 
   if(prevHappiness != happiness){
