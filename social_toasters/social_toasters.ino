@@ -6,7 +6,6 @@ int toasterID = 0;
 int happinessStream = 3 + toasterID; 
 boolean report = false; // debugging
 
-
 long toasterFeed[5] = {
   91258, 91259, 91260, 91261, 91262}; 
 
@@ -27,23 +26,23 @@ int currentCoilIndex = 0;                  // the index of the current reading
 int average = 0;                // the average
 boolean counting = false;
 double currentSense[numReadings];
-boolean toastInProgress = false;
+boolean toastInProgress = false;  // being used
+boolean prevToastInProgress = false; // prev state of being used, to compare with the current state
 
 // More variables
-int streamID; 
-int totalUsage = 0;
-int localTotalUsage = 0;
-int remoteTotalUsage = 0;
-
+int totalUsage = 0;  // actual total usage that is being used
+int localTotalUsage = 0; // total usage read from SD card
+int remoteTotalUsage = 0; // total usage read from Cosm
 
 // Pin assignments
 int ledPin = 5;
 int arduinoResetPin = 3;
 int coilAnalogInputPin = A1;
-
+int servoPin = 9;
 
 // JSON Socket Server decoding variables/stuff
-float tempRemoteValue;
+int tempRemoteValue; // to store temp value
+int streamID;  // to store temp stream ID
 char buff[64]; // incoming data, maximum of each line
 boolean foundCurrentV = false;
 boolean clientConnected = false;
@@ -73,21 +72,19 @@ int angryTres = 3;
 int maxResist = 5;
 int resistCount = 0;
 
-boolean prevBeingUsed = false;
-boolean beingUsed = false;
 int ledMode = 1; // 0-3 0=off, 1=getting network, 2= normal, 3=problemo
 
 
 
 /*
 // 
-////////////////////////////////////////////////////////////////////////////
-//
-//  Setup loop:
-//    Initializes the serial, current sensing coil, SD card, servo, and
-//    wiFly module
-//
-*/
+ ////////////////////////////////////////////////////////////////////////////
+ //
+ //  Setup loop:
+ //    Initializes the serial, current sensing coil, SD card, servo, and
+ //    wiFly module
+ //
+ */
 
 
 void setup(){
@@ -108,20 +105,20 @@ void setup(){
 
 /*
 // 
-////////////////////////////////////////////////////////////////////////////
-//
-//  Constant loop:
-//    Switches between states depending on whether the toaster has lost power,
-//    is waiting for a reply, etc.
-//
-//
-*/
+ ////////////////////////////////////////////////////////////////////////////
+ //
+ //  Constant loop:
+ //    Switches between states depending on whether the toaster has lost power,
+ //    is waiting for a reply, etc.
+ //
+ //
+ */
 
 
 void loop(){
-  
+
   ledControl();
-  
+
   switch(state){
   case 0: // open connection to cosm
     ledMode = 1;
@@ -170,16 +167,39 @@ void loop(){
     }
 
     break;
-    
-  case 3: // sent subscription
+
+  case 3:
     ledMode = 1;
-    cosmSocketSub(91254, happinessStream,"happynessSub");
+    // ask for last happiness from avg feed 
+    cosmSocketGet(avgFeed,happinessStream); 
+    Serial.println(F("getting last happiness.."));
+    delay(1000);
+    lastAttempMillis = millis();
+    state ++;
+    break;
+
+  case 4: // and wait for result (check in decoder)
+    ledMode = 1;
+    if(millis() - lastAttempMillis > 5000){
+      Serial.println(F("waiting too long, asking again"));
+      state --;
+      failure ++;
+      if(failure > 10){
+        forceReset();
+      }
+    }
+
+    break;
+
+  case 5: // sent subscription
+    ledMode = 1;
+    cosmSocketSub(avgFeed, happinessStream,"happinessSub");
     Serial.println(F("sent subscription to cosm.."));
     lastAttempMillis = millis();
     state ++;
     break;
 
-  case 4: // and wait for 200 ok (check in decoder)
+  case 6: // and wait for 200 ok (check in decoder)
     ledMode = 1;
     if(millis() - lastAttempMillis > 5000){
       Serial.println(F("waiting too long, asking again"));
@@ -191,16 +211,18 @@ void loop(){
     }
     break;
 
-  case 5: // compare and adjust local and online value
+  case 7: // compare and adjust local and online value
     ledMode = 1;
     adjustValue();
     Serial.println(F("adjust var completed, starting main loop"));
+    Serial.println(F("----------------------------------------"));
+    Serial.println();
     state ++;
     ledMode = 2;
     break;
 
-  case 6: // main loop
-    
+  case 8: // main loop
+
     mainLoop();
 
 
@@ -209,8 +231,8 @@ void loop(){
 
   }
 
-  
-  
+
+
 
 
   while (client.available()) {
@@ -224,14 +246,14 @@ void loop(){
 
 /*
 // 
-////////////////////////////////////////////////////////////////////////////
-//
-//  void mainLoop():
-//    Switches between states depending on whether the toaster has lost power,
-//    is waiting for a reply, etc.
-//
-//
-*/
+ ////////////////////////////////////////////////////////////////////////////
+ //
+ //  void mainLoop():
+ //    Switches between states depending on whether the toaster has lost power,
+ //    is waiting for a reply, etc.
+ //
+ //
+ */
 
 
 
@@ -239,48 +261,48 @@ void loop(){
 
 void mainLoop(){
 
-
-
-
-  currentSense[currentCoilIndex] = emon1.calcIrms(1480);    // Add an element to the current sample array
-  toastInProgress = isToasting();
- 
-  currentCoilIndex++;
-  if (currentCoilIndex >= numReadings) {
-    currentCoilIndex = 0;
-  }   
-
-
-
+  checkCurrent();   //current sensing 
 
   checkConnection();
-  fakeToast();
-  
-  if(!beingUsed){
+
+  //fakeToast();
+
+  if(!toastInProgress){
     moveServo();
     expressEmotion();
   }
-  
 
-  beingUsed = toasterIsBeingUsed();
-  
-  if(!prevBeingUsed && beingUsed){
+  if(prevToastInProgress != toastInProgress){
 
-    if(resistCount < maxResist){
-      resistCount ++;
-      cutPower();
+    if(toastInProgress){
+      Serial.print("lever is pressed..");
+      if(resistCount < maxResist){
+        resistCount ++;
+        cutPower();
+        Serial.print(F("but the toaster is still pissed, resisCount = "));
+        Serial.println(resistCount);
+      }
+      else{
+        resistCount = 0;
+        totalUsage ++;
+        Serial.print(F("total usage is "));
+        Serial.println(totalUsage);
+        cosmSocketPut2(localFeedID, 0, totalUsage, 5, 1);
+        
+      }
+
     }
     else{
-      resistCount = 0;
-      totalUsage ++;
-      cosmSocketPut(localFeedID, 0, totalUsage);
+      Serial.println(F("lever is released"));
+      cosmSocketPut(localFeedID, 5, 0);
       lastAttempMillis = millis();
-
     }
-    
-  } 
+
+    prevToastInProgress = toastInProgress;
+  }
+
+
   
-  prevBeingUsed = beingUsed;
 
 
   if(prevHappiness != happiness){
@@ -298,6 +320,7 @@ void mainLoop(){
 
 
 }
+
 
 
 

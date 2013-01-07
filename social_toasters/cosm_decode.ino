@@ -16,7 +16,7 @@ void checkResponse(){
     if (found != 0){
       Serial.print(F("."));
       last200Millis = millis();
-      if(state == 4){
+      if(state == 6){
         Serial.println(F("completed"));
         state ++; 
         failure = 0;
@@ -24,7 +24,7 @@ void checkResponse(){
     }
 
 
-    found = strstr(buff, "current_tempRemoteValue");
+    found = strstr(buff, "current_value");
     if (found != 0){
       foundCurrentV = true; 
       tempRemoteValue = buffToInt(17, (pointer-2) - 17 );
@@ -36,20 +36,28 @@ void checkResponse(){
       if (found != 0){
         streamID = buffToInt(6, (pointer-2) - 6 );
         foundCurrentV = false; 
-        
+
         if(report){
           Serial.print(F("id = ")); 
           Serial.print(streamID); 
           Serial.print(F("  currentValue = "));  
           Serial.println(tempRemoteValue);
         }
-        
+
         if(streamID == happinessStream){
           happiness = tempRemoteValue;
-          Serial.print(F("happiness = "));
-          Serial.println(tempRemoteValue);
+          if(state == 4){
+            Serial.print(F("received last happiness = "));
+            Serial.println(tempRemoteValue);
+            state ++; 
+            failure = 0;
+          }
+          else{
+            Serial.print(F("happiness = "));
+            Serial.println(tempRemoteValue);
+          }
         }
-        
+
 
         if(state == 2 && streamID == 0){
           remoteTotalUsage = tempRemoteValue;
@@ -58,7 +66,7 @@ void checkResponse(){
           state ++; 
           failure = 0;
         }
-        
+
       }
 
     }
@@ -86,6 +94,10 @@ int buffToInt(int s, int l){
   r[l] = '\0';
   return int(atof(r));  
 }
+
+
+
+
 
 
 
