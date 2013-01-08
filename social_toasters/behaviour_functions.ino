@@ -12,6 +12,7 @@ void expressEmotion(){
 
   if(millis() - lastEmotionMillis > emotionInterval){
     lastEmotionMillis = millis();
+    lastActionMillis = millis();
     // express emotion depends on happiness
     // startServo(2);
   } 
@@ -20,11 +21,34 @@ void expressEmotion(){
 }
 
 int resistCal(){
-  
+
   if(happiness < angryTres){
-   return (7 - happiness); 
-  }else{
-   return 0; 
+    return (7 - happiness); 
   }
-  
+  else{
+    return 0; 
+  }
+
 }
+
+
+void checkSleep(){
+  if(millis() - lastActionMillis > sleepTimer){
+    Serial.println(F("I'm sleeping now"));
+    if(!sleeping){
+      sleepRad = PI/2;
+    }
+    sleeping = true;
+    ledMode = 4;
+  }
+  else{
+    sleeping = false;
+    ledMode = 2;
+  } 
+
+
+
+}
+
+
+

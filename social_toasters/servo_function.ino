@@ -2,22 +2,24 @@
 Servo myservo;
 
 boolean servoPrint = false;
+int servoHighest = 90;
 
 int movement[3][11] = {
 
   {
-    5,5000,45,500,90,2000,90,500,45,300,0          }
+    5,5000,45,500,90,2000,90,500,45,300,servoHighest          }
   , // first digit is number of step, time to, destination, time to, destination, so on..
   {
-    4,1000,90,200,45,5000,90,1000,0,999,999          } // this case we dont use the last 2, because there r 4 steps
+    4,1000,90,200,45,5000,90,1000,servoHighest,999,999          } // this case we dont use the last 2, because there r 4 steps
   ,
   {
-    5,300,30,300,0,300,30,300,45,500,0          }
+    5,300,30,300,90,300,30,300,45,500,servoHighest          }
 
 };
 
+
 int currentServoStep = 0; //to keep track where are we
-float currentServoAngle = 0; // to keep track of current angle
+float currentServoAngle = servoHighest; // to keep track of current angle
 int servoInterval = 50; // move every 50 millis
 long lastServoMillis = millis();
 int totalServoFrame = 0; // to be calculated
