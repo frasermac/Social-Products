@@ -2,15 +2,19 @@
 #include <WiFly.h>
 #include "EmonLib.h"                   // Include Emon Library
 
-int toasterID = 0;
-int happinessStream = 3 + toasterID; 
+int toasterID = 5; // start from 1
+boolean servoLeft = true;
 boolean report = false; // debugging
+boolean servoPrint = false; // debugging
+
+int happinessStream = 2 + toasterID; 
+
 
 long toasterFeed[5] = {
-  91258, 91259, 91260, 91261, 91262}; 
+  96617, 96618, 96620, 96621, 96622}; 
 
-long localFeedID = toasterFeed[toasterID];
-long avgFeed = 91254;
+long localFeedID = toasterFeed[toasterID-1];
+long avgFeed = 96616;
 
 String API = "o9DJZaSWEcrSlqJjuwrJLCVpcN2SAKxXcmkrVUc1Q2c0TT0g";
 
@@ -39,9 +43,10 @@ int ledPin = 5;
 int arduinoResetPin = 3;
 int coilAnalogInputPin = A1;
 int servoPin = 9;
+int relayPin = 2;
 
 // JSON Socket Server decoding variables/stuff
-int tempRemoteValue; // to store temp value
+float tempRemoteValue; // to store temp value
 int streamID;  // to store temp stream ID
 char buff[64]; // incoming data, maximum of each line
 boolean foundCurrentV = false;
@@ -55,26 +60,37 @@ int maxWiflyFailure  = 5;
 
 unsigned long lastAttempMillis = millis();
 unsigned long last200Millis = millis();
-unsigned long check200Interval = 15000;
-
-unsigned long fakeToastMillis = millis();
-unsigned long fakeToastInterval = 15000;
+unsigned long check200Interval = 5000;
 
 unsigned long lastEmotionMillis = millis();
 unsigned long emotionInterval = 900000; // 15 mins
 
+unsigned long lastActionMillis = millis();
+unsigned long sleepTimer = 450000; // 5mins
+
+long lastRelayMillis = millis(); 
+long relayInterval = 1000; // stay off for 1 sec
+boolean powerAllow = true;
+
 int state = 0; 
 int failure = 0;
-int happiness = 0;
-int prevHappiness = 0;
-int angryTres = 3;
+float happiness = 0;
+float prevHappiness = -1;
+int angryTres = 4;
 
 int maxResist = 5;
 int resistCount = 0;
 
 int ledMode = 1; // 0-3 0=off, 1=getting network, 2= normal, 3=problemo
+boolean servoRunning = false;
+int emotionServoMode = 0;
+boolean firstExpress = 0;
 
-
+boolean toggle2 = 0;
+int ledCounter = 0;
+float sleepRad = 0;
+int ledBrightness = 0;
+boolean sleeping = false;
 
 /*
 // 
@@ -89,18 +105,20 @@ int ledMode = 1; // 0-3 0=off, 1=getting network, 2= normal, 3=problemo
 
 void setup(){
   Serial.begin(9600);
-  Serial.println(F("starting up"));
-  delay(5000);
-
-  setupLed();                // Initialize led pin
-  setupCurrentCoil();        // Initialize the current sensing coil and its averaging array
-  emon1.current(1, 111.1);   // Current: input pin, calibration.
-  readSD();                  // Read the network config from the the SD card
-  setupServo();              // Designate the servo pin and move it to home position
-  WiFlyStartup();            // Start wiFly and connect to the network, also check for error and force reset
-
+  Serial.print(F("TOASTER: "));
+  Serial.print(toasterID);
+  Serial.print(F("  FEEDID: "));
+  Serial.print(localFeedID);
+  Serial.println(F("  starting up.. "));
+ 
+  setupLed();   
+  state = -1;
 }
 
+
+ISR(TIMER2_COMPA_vect){ // interupt timer at 8kHz
+  ledControl();
+} 
 
 
 /*
@@ -117,14 +135,23 @@ void setup(){
 
 void loop(){
 
-  ledControl();
-
   switch(state){
+
+  case -1:
+    delay(5000);
+    setupCurrentCoil();        // Initialize the current sensing coil and its averaging array
+    emon1.current(1, 111.1);   // Current: input pin, calibration.
+    readSD();                  // Read the network config from the the SD card
+    setupServo();              // Designate the servo pin and move it to home position
+    WiFlyStartup();            // Start wiFly and connect to the network, also check for error and force reset
+    state ++;
+    break; 
+
   case 0: // open connection to cosm
     ledMode = 1;
-    Serial.print(F("connecting..."));
-    if (client.connect("beta.pachube.com", 8081)) {
-      Serial.print(F("success.."));
+    Serial.print(F("connecting Cosm.. "));
+    if (client.connect("api.cosm.com", 8081)) {
+      Serial.println(F("success.."));
       delay(1000);
       state ++;
       failure = 0;
@@ -148,7 +175,7 @@ void loop(){
   case 1:
     ledMode = 1;
     // ask for last total usage (stream 0)
-    cosmSocketGet(localFeedID,0); 
+    cosmSocketGet(localFeedID,0,"getLastUsage"); 
     Serial.println(F("getting last total usage.."));
     delay(1000);
     lastAttempMillis = millis();
@@ -171,7 +198,7 @@ void loop(){
   case 3:
     ledMode = 1;
     // ask for last happiness from avg feed 
-    cosmSocketGet(avgFeed,happinessStream); 
+    cosmSocketGet(avgFeed,happinessStream,"getHappiness"); 
     Serial.println(F("getting last happiness.."));
     delay(1000);
     lastAttempMillis = millis();
@@ -215,7 +242,7 @@ void loop(){
     ledMode = 1;
     adjustValue();
     Serial.println(F("adjust var completed, starting main loop"));
-    Serial.println(F("----------------------------------------"));
+    Serial.println(F("////////////////////////////////////////"));
     Serial.println();
     state ++;
     ledMode = 2;
@@ -224,7 +251,6 @@ void loop(){
   case 8: // main loop
 
     mainLoop();
-
 
     break;
 
@@ -236,6 +262,9 @@ void loop(){
 
 
   while (client.available()) {
+    if(state == 8){
+      ledMode = 3;
+    }
     checkResponse();
   }
 
@@ -260,18 +289,21 @@ void loop(){
 
 
 void mainLoop(){
-
-  checkCurrent();   //current sensing 
-
+  
+  if(!servoRunning){
+    checkCurrent();   //current sensing 
+  }
+  
   checkConnection();
-
-  //fakeToast();
-
+  checkSleep();
+  powerControl();
+  
   if(!toastInProgress){
     moveServo();
     expressEmotion();
   }
-
+  
+  
   if(prevToastInProgress != toastInProgress){
 
     if(toastInProgress){
@@ -287,14 +319,14 @@ void mainLoop(){
         totalUsage ++;
         Serial.print(F("total usage is "));
         Serial.println(totalUsage);
-        cosmSocketPut2(localFeedID, 0, totalUsage, 5, 1);
-        
+        cosmSocketPut3(localFeedID, 0, totalUsage, 5, 1, -1, 0, "leverPressed");
+
       }
 
     }
     else{
       Serial.println(F("lever is released"));
-      cosmSocketPut(localFeedID, 5, 0);
+      cosmSocketPut3(localFeedID, 5, 0, -1, -1, -1, -1, "leverReleased");
       lastAttempMillis = millis();
     }
 
@@ -302,15 +334,15 @@ void mainLoop(){
   }
 
 
-  
+
 
 
   if(prevHappiness != happiness){
 
     maxResist = resistCal();
-
+    emotionCal();    
     if(happiness < prevHappiness){
-      startServo(2);
+      startServo(0);
       lastEmotionMillis = millis();
     }
     prevHappiness = happiness; 
@@ -320,6 +352,7 @@ void mainLoop(){
 
 
 }
+
 
 
 
