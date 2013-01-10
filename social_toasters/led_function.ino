@@ -1,16 +1,9 @@
 
-long lastLedOnMillis = 0;
-long lastLedOffMillis = 0;
-boolean ledOn = false;
-long ledOnInterval[] = {0,5000,500,100};
-long ledOffInterval[] = {5000,0,500,100};
-
-
 
 void setupLed(){
-  
+
   cli();//stop interrupts
- 
+
   TCCR2A = 0;// set entire TCCR2A register to 0
   TCCR2B = 0;// same for TCCR2B
   TCNT2  = 0;//initialize counter value to 0
@@ -22,42 +15,45 @@ void setupLed(){
   TCCR2B |= (1 << CS12) | (1 << CS10);  
   // enable timer compare interrupt
   TIMSK2 |= (1 << OCIE2A);
-  
+
   sei();//allow interrupts  
-  
+
 }
+
 
 
 void ledControl(){
-  if(ledMode == 0){
-    analogWrite(ledPin, 0);
-  }else if(ledMode == 1){
-    analogWrite(ledPin, 80);
-    
-  }else{
-  
-    if(ledOn == true){
-      
-      if(millis() - lastLedOnMillis > ledOnInterval[ledMode] ){
-        ledOn = false;
-        analogWrite(ledPin, 0);
-        lastLedOffMillis = millis();
-        //Serial.println("off");
+
+  if(ledMode == 1){
+    ledCounter ++; 
+    if(ledCounter == 300){
+      ledCounter = 0;
+      if (toggle2){
+        analogWrite(ledPin,100);
+        toggle2 = 0;
       }
-      
-    }else{
-      
-      if(millis() - lastLedOffMillis > ledOffInterval[ledMode] ){
-        ledOn = true;
-        analogWrite(ledPin, 255);
-        lastLedOnMillis = millis();
-        //Serial.println("on");
+      else{
+        analogWrite(ledPin,0);
+        toggle2 = 1;
       }
-    }  
-  
+    }
   }
-  
+  else if(ledMode == 2){
+
+    analogWrite(ledPin,80);
+
+  }
+  else if(ledMode == 3){
+
+    analogWrite(ledPin,255);
+
+  }
+  else if(ledMode == 4){
+    sleepRad += 0.002;
+    ledBrightness = 40 + sin(sleepRad)*40;
+    analogWrite(ledPin,ledBrightness);
+
+  }
+
 }
-
-
 
