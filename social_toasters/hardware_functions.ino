@@ -6,10 +6,10 @@ void WiFlyStartup(){
   char passphrase[] = "j3llyf1sh"; // password
   
   //wdt_enable(WDTO_8S); // start WDT to 8 secs
-  Serial.println(F("WiFly begin"));
+  Serial.print(F("WiFly begin.."));
   WiFly.begin();    // startup the WiFly
 
-  Serial.print(F("WiFly joining "));
+  Serial.print(F("joining "));
   Serial.println(ssid);
   // Join the WiFi network
   if (WiFly.join(ssid, passphrase)) {
@@ -49,7 +49,7 @@ void forceReset(){
 }
 
 void readSD(){
-  Serial.println(F("reading from SD card.."));
+  Serial.print(F("reading from SD card.."));
   localTotalUsage = 0;
 //  for(int k=0; k<SIZE; k++){
 //   usageTrack[k] = 0; 
@@ -59,22 +59,24 @@ void readSD(){
   Serial.println(F("done"));
 }
 
-void leverControl(int mode){
-  
- 
-}
 
-boolean toasterIsBeingUsed(){
-  
-  
-  
- return false; 
-}
 
 void cutPower(){
-  // put relay one
-  // delay(500);
-  // out relay off
-  
-  
+  Serial.println("cut power");
+  powerAllow = false;
+  lastRelayMillis = millis();
+}
+
+void powerControl(){
+  if(!powerAllow){
+    if(millis() - lastRelayMillis > relayInterval){
+      powerAllow = true;
+      Serial.println("back on");
+      digitalWrite(relayPin, LOW);
+    }
+    else{
+      digitalWrite(relayPin, HIGH);
+    }
+  }
+
 }
