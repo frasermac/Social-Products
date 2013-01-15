@@ -2,14 +2,15 @@ void adjustValue(){
 
   totalUsage = max(localTotalUsage, remoteTotalUsage); // use the larger one
   if(localTotalUsage != remoteTotalUsage){
-    Serial.println(F("difference in totalUsage, use the larger one")); 
+    Serial.print(F("difference in totalUsage, use the larger one: ")); 
+    Serial.println(totalUsage);
   }
-
+  saveLocalUsage();
 }
 
 
 void expressEmotion(){
-  
+
   if(firstExpress == 1){
     if(happiness < 7){
       Serial.println(F("expressing first emotion...")); 
@@ -95,7 +96,7 @@ void checkSleep(){
   } 
 
 }
-
+boolean getSwitch = false;
 // checkConnection() sends a fake update to the toaster's feed every 'check200Interval' milliseconds
 void checkConnection(){
   int a = 0;
@@ -106,15 +107,37 @@ void checkConnection(){
     else{
       a = 0; 
     }
-    cosmSocketPut3(localFeedID, 0, totalUsage, 4, happiness, 5, a, "routineUpdate");
+    
+    //if (client.connect(server, 80)) {
+    
+      if(getSwitch){
+        cosmPut3(localFeedID, 0, totalUsage, 4, happiness, 5, a, "routineUpdate");
+        getSwitch = false;
+      }
+      else{
+        cosmGet(avgFeed,happinessStream,"getHappiness", "get"); 
+        getSwitch = true;
+     }
+        
     lastAttempMillis = millis();
   }
-
+  
+  if(millis() - lastAttempMillis > waitingLimit && isReading){
+    Serial.print("?");
+    finishReading();
+  }
+  
   // if didn't get 200 in 5 tries
   if(millis() - last200Millis > check200Interval*5){
-    forceReset();
+    state = 0;
+    wiflyFailure ++;
+    if(wiflyFailure > maxWiflyFailure){
+      Serial.println(F("can't connect to router, try reseting...."));
+      forceReset(); 
+    }
   }
 }
+
 
 
 

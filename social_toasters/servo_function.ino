@@ -12,13 +12,13 @@ int movement[movementModeNo][movementStepNo] = { // first digit is number of ste
 
 
   {
-    4,  1,  300,  70,  300,  100,  300,  70,  300,  100,  999,  99        } // wiggle
+    4,  1,  300,  80,  300,  100,  300,  80,  300,  100,  999,  99        } // wiggle
   , 
   {
-    4,  5,  200,  30,  150,  60,  300,  0,  200,  50,  200,  100        } // 0,1,2 super pissed
+    2,  9,  150,  80,  150,  40,  150,  50,  150,  60,  150,  40         } // 0,1,2 super pissed
   ,
   {  
-    4,  2,  1000,  30,  300,  50,  300,  30,  500,  100,  999,  99        } // 3,4 moderately pissed
+    4,  2,  1000,  30,  300,  50,  300,  30,  500,  100,  999,  99         } // 3,4 moderately pissed
   ,
   {  
     3,  1,  1000,  75,  1000,  50,  1000,  100,  999,  99,  999,  99        }// 5,6 slightly pissed
@@ -36,18 +36,23 @@ float servoMoveStep = 0; // to be calculated
 
 
 void setupServo(){
-
+  mapServo(); // re calculate pattern depends on servo is on the left or right
+  currentServoAngle = svHighest;
   myservo.attach(servoPin);
   myservo.write(currentServoAngle);
   delay(2000);
   myservo.detach();
-  mapServo(); // re calculate pattern depends on servo is on the left or right
+  
 }
 
 
 void mapServo(){
   if(!servoLeft){
-    svLowest = 360;
+    svLowest = 180;
+    svHighest = 0;
+  }else{
+    svLowest = 0;
+    svHighest = 180;
   }
 
   for(int i=0; i< movementModeNo; i++){
@@ -126,10 +131,13 @@ void startServo(int mode){
 }
 
 void stopServo(){
+  myservo.write(svHighest);
+  delay(500);
   servoRunning = false; 
   servoRoundCount = 0;
   myservo.detach();
 }
+
 
 void calServo(){
 

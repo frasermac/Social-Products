@@ -1,11 +1,13 @@
 #include <SPI.h>
 #include <WiFly.h>
 #include "EmonLib.h"                   // Include Emon Library
+#include <EEPROM.h>
 
 int toasterID = 5; // start from 1
-boolean servoLeft = true;
+boolean servoLeft = false;
 boolean report = false; // debugging
 boolean servoPrint = false; // debugging
+boolean socketServer = false;
 
 int happinessStream = 2 + toasterID; 
 
@@ -14,6 +16,7 @@ long toasterFeed[5] = {
   96617, 96618, 96620, 96621, 96622}; 
 
 long localFeedID = toasterFeed[toasterID-1];
+//long localFeedID = 96618;
 long avgFeed = 96616;
 
 String API = "o9DJZaSWEcrSlqJjuwrJLCVpcN2SAKxXcmkrVUc1Q2c0TT0g";
@@ -21,8 +24,11 @@ String API = "o9DJZaSWEcrSlqJjuwrJLCVpcN2SAKxXcmkrVUc1Q2c0TT0g";
 // Instantiations
 WiFlyClient client;
 EnergyMonitor emon1;
+char ssid[26]; // network name
+char passphrase[26]; // password
 
-
+//char ssid[] = "CEL2"; // network name
+//char passphrase[] = "j3llyf1sh"; // password
 
 // Current monitoring variables
 const int numReadings = 10;
@@ -52,6 +58,8 @@ char buff[64]; // incoming data, maximum of each line
 boolean foundCurrentV = false;
 boolean clientConnected = false;
 boolean found200 = false;
+boolean isReading = false; // only use this when not using socket server
+int contentLength = 0;
 char *found;
 int pointer = 0;
 
@@ -60,7 +68,9 @@ int maxWiflyFailure  = 5;
 
 unsigned long lastAttempMillis = millis();
 unsigned long last200Millis = millis();
-unsigned long check200Interval = 5000;
+unsigned long check200Interval = 10000;
+unsigned long waitingLimit = 3000; // if doesn't get the feedback in 3 secs, close socket and finish reading
+
 
 unsigned long lastEmotionMillis = millis();
 unsigned long emotionInterval = 900000; // 15 mins
@@ -91,6 +101,23 @@ int ledCounter = 0;
 float sleepRad = 0;
 int ledBrightness = 0;
 boolean sleeping = false;
+boolean networkConfig = false;
+int networkConfigState = 0;
+IPAddress server(64,94,18,121);
+int port;
+
+#define SETUP_HARDWARE 0 
+#define SETUP_WIFLY 1 
+#define CONNECTING_COSM 2 
+#define GET_USAGE 3
+#define READ_USAGE 4
+#define GET_HAPPINESS 5
+#define READ_HAPPINESS 6
+#define SUB_HAPPINESS 7
+#define WAIT_HAPPINESS 8
+#define COMPARE_VAR 9
+#define MAIN_LOOP 10
+#define NETWORK_CONFIG 11
 
 /*
 // 
@@ -110,9 +137,15 @@ void setup(){
   Serial.print(F("  FEEDID: "));
   Serial.print(localFeedID);
   Serial.println(F("  starting up.. "));
- 
-  setupLed();   
-  state = -1;
+  pinMode(relayPin, OUTPUT);
+  setupLed();
+  state = SETUP_HARDWARE;
+  if(socketServer){
+    port = 8081; 
+  }
+  else{
+    port = 80;
+  }
 }
 
 
@@ -135,24 +168,32 @@ ISR(TIMER2_COMPA_vect){ // interupt timer at 8kHz
 
 void loop(){
 
+
   switch(state){
 
-  case -1:
+  case SETUP_HARDWARE:
     delay(5000);
     setupCurrentCoil();        // Initialize the current sensing coil and its averaging array
     emon1.current(1, 111.1);   // Current: input pin, calibration.
-    readSD();                  // Read the network config from the the SD card
-    setupServo();              // Designate the servo pin and move it to home position
-    WiFlyStartup();            // Start wiFly and connect to the network, also check for error and force reset
+    readEEPROM();
+    setupServo();              // Designate the servo pin and move it to home position               
     state ++;
     break; 
 
-  case 0: // open connection to cosm
+  case SETUP_WIFLY:
+
+    WiFlyStartup(); // Start wiFly and connect to the network, also check for error and force reset
+
+    break;
+
+  case CONNECTING_COSM: // open connection to cosm
     ledMode = 1;
+
+
     Serial.print(F("connecting Cosm.. "));
-    if (client.connect("api.cosm.com", 8081)) {
+    if (client.connect(server, port)) {
       Serial.println(F("success.."));
-      delay(1000);
+      //delay(1000);
       state ++;
       failure = 0;
       lastAttempMillis = millis();
@@ -167,22 +208,23 @@ void loop(){
       }
       Serial.println(F("wait 5 secs, then try again"));
       delay(5000);
-
     }
+
+
 
     break;
 
-  case 1:
+  case GET_USAGE:
     ledMode = 1;
     // ask for last total usage (stream 0)
-    cosmSocketGet(localFeedID,0,"getLastUsage"); 
+    cosmGet(localFeedID,0,"getLastUsage", "get"); 
+    //cosmNormalGet(localFeedID,0);
     Serial.println(F("getting last total usage.."));
-    delay(1000);
     lastAttempMillis = millis();
     state ++;
     break;
 
-  case 2: // and wait for result (check in decoder)
+  case READ_USAGE: // and wait for result (check in decoder)
     ledMode = 1;
     if(millis() - lastAttempMillis > 5000){
       Serial.println(F("waiting too long, asking again"));
@@ -195,17 +237,17 @@ void loop(){
 
     break;
 
-  case 3:
+  case GET_HAPPINESS:
     ledMode = 1;
     // ask for last happiness from avg feed 
-    cosmSocketGet(avgFeed,happinessStream,"getHappiness"); 
+    cosmGet(avgFeed,happinessStream,"getHappiness", "get"); 
+
     Serial.println(F("getting last happiness.."));
-    delay(1000);
     lastAttempMillis = millis();
     state ++;
     break;
 
-  case 4: // and wait for result (check in decoder)
+  case READ_HAPPINESS: // and wait for result (check in decoder)
     ledMode = 1;
     if(millis() - lastAttempMillis > 5000){
       Serial.println(F("waiting too long, asking again"));
@@ -218,18 +260,22 @@ void loop(){
 
     break;
 
-  case 5: // sent subscription
+  case SUB_HAPPINESS: // sent subscription
+    //////
+    state = COMPARE_VAR;
+    //////
     ledMode = 1;
-    cosmSocketSub(avgFeed, happinessStream,"happinessSub");
-    Serial.println(F("sent subscription to cosm.."));
+    //cosmSocketGet(avgFeed, happinessStream,"happinessSub1", "subscribe");
+    //cosmSocketSub(avgFeed, happinessStream,"happinessSub2");
+    //Serial.println(F("sent subscription to cosm.."));
     lastAttempMillis = millis();
     state ++;
     break;
 
-  case 6: // and wait for 200 ok (check in decoder)
+  case WAIT_HAPPINESS: // and wait for 200 ok (check in decoder)
     ledMode = 1;
     if(millis() - lastAttempMillis > 5000){
-      Serial.println(F("waiting too long, asking again"));
+      //Serial.println(F("waiting too long, asking again"));
       state --;
       failure ++;
       if(failure > 10){
@@ -238,25 +284,28 @@ void loop(){
     }
     break;
 
-  case 7: // compare and adjust local and online value
+  case COMPARE_VAR: // compare and adjust local and online value
     ledMode = 1;
     adjustValue();
     Serial.println(F("adjust var completed, starting main loop"));
-    Serial.println(F("////////////////////////////////////////"));
-    Serial.println();
+    Serial.print("\n\n");
     state ++;
     ledMode = 2;
     break;
 
-  case 8: // main loop
+  case MAIN_LOOP: // main loop
 
     mainLoop();
 
     break;
 
+  case NETWORK_CONFIG:
+
+    //doing nothing
+
+    break;
 
   }
-
 
 
 
@@ -265,7 +314,16 @@ void loop(){
     if(state == 8){
       ledMode = 3;
     }
-    checkResponse();
+    if(isReading ){ // expecting something
+      checkResponse();
+    }
+    else{
+      char c = client.read();
+    }
+  }
+
+  while (Serial.available() > 0) {
+    serialFeedback();
   }
 
 }
@@ -289,21 +347,21 @@ void loop(){
 
 
 void mainLoop(){
-  
-  if(!servoRunning){
+
+  if(!servoRunning && !isReading){
     checkCurrent();   //current sensing 
   }
-  
+
   checkConnection();
   checkSleep();
   powerControl();
-  
+
   if(!toastInProgress){
     moveServo();
     expressEmotion();
   }
-  
-  
+
+
   if(prevToastInProgress != toastInProgress){
 
     if(toastInProgress){
@@ -317,16 +375,18 @@ void mainLoop(){
       else{
         resistCount = 0;
         totalUsage ++;
+        saveLocalUsage();
         Serial.print(F("total usage is "));
         Serial.println(totalUsage);
         cosmSocketPut3(localFeedID, 0, totalUsage, 5, 1, -1, 0, "leverPressed");
-
+        //cosmPut3(localFeedID, 0, totalUsage, 4, happiness, 5, 1);
       }
 
     }
     else{
       Serial.println(F("lever is released"));
       cosmSocketPut3(localFeedID, 5, 0, -1, -1, -1, -1, "leverReleased");
+      //cosmPut3(localFeedID, 0, totalUsage, 4, happiness, 5, 0);
       lastAttempMillis = millis();
     }
 
@@ -342,8 +402,10 @@ void mainLoop(){
     maxResist = resistCal();
     emotionCal();    
     if(happiness < prevHappiness){
-      startServo(0);
-      lastEmotionMillis = millis();
+      if(!toastInProgress){
+        startServo(0);
+        lastEmotionMillis = millis();
+      }
     }
     prevHappiness = happiness; 
 
@@ -352,6 +414,11 @@ void mainLoop(){
 
 
 }
+
+
+
+
+
 
 
 
