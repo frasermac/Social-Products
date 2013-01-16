@@ -2,8 +2,7 @@
 void WiFlyStartup(){
   
   
-  char ssid[] = "CEL2"; // network name
-  char passphrase[] = "j3llyf1sh"; // password
+
   
   //wdt_enable(WDTO_8S); // start WDT to 8 secs
   Serial.print(F("WiFly begin.."));
@@ -23,8 +22,9 @@ void WiFlyStartup(){
     }
     else{
       Serial.println(F(" OK.."));
+      wiflyFailure = 0;
+      state ++;
     }
-    //wdt_disable(); //disable WDT
 
   }
   else{
@@ -34,7 +34,6 @@ void WiFlyStartup(){
       Serial.println(F("can't connect to router, try reseting...."));
       forceReset(); 
     }
-    WiFlyStartup();
   } 
 
 }
@@ -42,22 +41,13 @@ void WiFlyStartup(){
 // forceReset() brings the rest pin to ground, which restarts the Arduino
 void forceReset(){
   
-  Serial.println(F("lost connection to Cosm too long, try reseting...."));
+  Serial.println(F("reseting...."));
   delay(500);
   pinMode(arduinoResetPin, OUTPUT);
   
 }
 
-void readSD(){
-  Serial.print(F("reading from SD card.."));
-  localTotalUsage = 0;
-//  for(int k=0; k<SIZE; k++){
-//   usageTrack[k] = 0; 
-//  }
-//  ssid[] = "CEL2";
-//  passphrase[] = "j3llyf1sh";
-  Serial.println(F("done"));
-}
+
 
 
 

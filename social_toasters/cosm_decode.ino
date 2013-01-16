@@ -1,5 +1,7 @@
 void checkResponse(){
   char c = client.read();
+  if(report)Serial.print(c);
+
   buff[pointer] = c;
   if (pointer < 64){ 
     pointer++;
@@ -8,25 +10,37 @@ void checkResponse(){
     //Serial.print("-"); 
   }
 
-  if (c == ',' || c == '}'){ 
-    if(report)Serial.println(buff);
+  if (c == ',' || c == '}' || c == '\n'){ 
+    //if(report)Serial.println(buff);
 
     // just check this for connection
-    found = strstr(buff, "\"status\":200");
+    if(socketServer){
+      found = strstr(buff, "\"status\":200");
+    }
+    else{
+      found = strstr(buff, "200 OK");
+    }
+
     if (found != 0){
       Serial.print(F("."));
       found200 = true;
       last200Millis = millis();
-      if(state == 6){
+      if(state == WAIT_HAPPINESS){
         Serial.println(F("completed"));
         state ++; 
         failure = 0;
       }
     }
-    
+
     found = strstr(buff, "\"status\":400");
     if (found != 0){
       Serial.print(F("-"));
+      found200 = false;
+    }
+
+    found = strstr(buff, "\"status\":401");
+    if (found != 0){
+      Serial.print(F("_"));
       found200 = false;
     }
 
@@ -36,24 +50,25 @@ void checkResponse(){
       foundCurrentV = true; 
       tempRemoteValue = buffToFloat(17, (pointer-2) - 17 );
 
-      if(state == 8){       
+      if(state == MAIN_LOOP){       
         happiness = tempRemoteValue;
-        Serial.print(F("happiness = "));
-        Serial.println(tempRemoteValue);
+        //        Serial.println(buff);
+        //        Serial.print(F("happiness = "));
+        Serial.print(tempRemoteValue);
         foundCurrentV = false; 
 
       }
-      else if(state == 4){
+      else if(state == READ_HAPPINESS){
 
         happiness = tempRemoteValue;
         Serial.print(F("received last happiness = "));
         Serial.println(tempRemoteValue);
         foundCurrentV = false; 
-        state ++;
+        state = COMPARE_VAR;
         failure = 0;
 
       }
-      else if(state == 2){
+      else if(state == READ_USAGE){
 
         remoteTotalUsage = int(tempRemoteValue);
         Serial.print(F("received last total usage:"));
@@ -61,8 +76,35 @@ void checkResponse(){
         state ++; 
         failure = 0;
       }
-      found200 = false;
+      //found200 = false;
+
     }
+
+
+
+    found = strstr(buff, "Content-Length");
+    if (found200 && found != 0){
+      contentLength = int(buffToFloat(16, (pointer-1) - 16 ));
+      if(report)Serial.print(F("content lenght: "));
+      if(report)Serial.println(contentLength);
+      //found200 = false;
+    }
+
+    if(contentLength == 1){
+      finishReading();
+      if(report)Serial.println(F("done!!!!"));
+      Serial.print(",");
+    }
+    else if( contentLength > 1 ){
+      found = strstr(buff, "}");
+      if( found != 0 ){
+        finishReading();
+         if(report)Serial.println(F("done!!!!"));
+         Serial.print(",");
+      }
+    }
+
+
 
     clean_buffer();
 
@@ -72,6 +114,14 @@ void checkResponse(){
 }
 
 
+void finishReading(){
+
+  found200 = false;
+  contentLength  = 0;
+  isReading = false;
+  if(!socketServer)client.stop();
+  //Serial.print(",");
+}
 
 void clean_buffer() {
   pointer = 0;
@@ -97,6 +147,12 @@ float buffToFloat(int s, int l){
   r[l] = '\0';
   return atof(r);  
 }
+
+
+
+
+
+
 
 
 
