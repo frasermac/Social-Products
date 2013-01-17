@@ -1,34 +1,32 @@
-#include <SPI.h>
+#include <SPI.h>    
 #include <WiFly.h>
 #include "EmonLib.h"                   // Include Emon Library
 #include <EEPROM.h>
 
-int toasterID = 5; // start from 1
-boolean servoLeft = false;
-boolean report = false; // debugging
-boolean servoPrint = false; // debugging
-boolean socketServer = false;
+const int toasterID = 4; // start from 1
+const boolean servoLeft = true; // servo position facing front of the toaster
+const boolean report = false; // debugging network
+const boolean servoPrint = false; // debugging servo
+const boolean socketServer = false;  // use socket server or not
 
-int happinessStream = 2 + toasterID; 
+const int happinessStream = 2 + toasterID; 
 
 
-long toasterFeed[5] = {
+const long toasterFeed[5] = {
   96617, 96618, 96620, 96621, 96622}; 
 
-long localFeedID = toasterFeed[toasterID-1];
+const long localFeedID = toasterFeed[toasterID-1];
 //long localFeedID = 96618;
-long avgFeed = 96616;
+const long avgFeed = 96616;
 
 String API = "o9DJZaSWEcrSlqJjuwrJLCVpcN2SAKxXcmkrVUc1Q2c0TT0g";
 
 // Instantiations
 WiFlyClient client;
 EnergyMonitor emon1;
+
 char ssid[26]; // network name
 char passphrase[26]; // password
-
-//char ssid[] = "CEL2"; // network name
-//char passphrase[] = "j3llyf1sh"; // password
 
 // Current monitoring variables
 const int numReadings = 10;
@@ -36,27 +34,24 @@ int currentCoilIndex = 0;                  // the index of the current reading
 int average = 0;                // the average
 boolean counting = false;
 double currentSense[numReadings];
-boolean toastInProgress = false;  // being used
 boolean prevToastInProgress = false; // prev state of being used, to compare with the current state
 
 // More variables
-int totalUsage = 0;  // actual total usage that is being used
-int localTotalUsage = 0; // total usage read from SD card
-int remoteTotalUsage = 0; // total usage read from Cosm
+unsigned int totalUsage = 0;  // actual total usage that is being used
+unsigned int localTotalUsage = 0; // total usage read from EEPROM
+unsigned int remoteTotalUsage = 0; // total usage read from Cosm
 
 // Pin assignments
-int ledPin = 5;
-int arduinoResetPin = 3;
-int coilAnalogInputPin = A1;
-int servoPin = 9;
-int relayPin = 2;
+const int ledPin = 5;
+const int arduinoResetPin = 3;
+const int coilAnalogInputPin = A1;
+const int servoPin = 9;
+const int relayPin = 2;
 
 // JSON Socket Server decoding variables/stuff
 float tempRemoteValue; // to store temp value
 int streamID;  // to store temp stream ID
 char buff[64]; // incoming data, maximum of each line
-boolean foundCurrentV = false;
-boolean clientConnected = false;
 boolean found200 = false;
 boolean isReading = false; // only use this when not using socket server
 int contentLength = 0;
@@ -64,29 +59,29 @@ char *found;
 int pointer = 0;
 
 int wiflyFailure = 0; // to count how many faliure of connecting to network
-int maxWiflyFailure  = 5;
+const int maxWiflyFailure  = 5;
 
 unsigned long lastAttempMillis = millis();
 unsigned long last200Millis = millis();
-unsigned long check200Interval = 10000;
-unsigned long waitingLimit = 3000; // if doesn't get the feedback in 3 secs, close socket and finish reading
+const unsigned long check200Interval = 10000;
+const unsigned long waitingLimit = 3000; // if doesn't get the feedback in 3 secs, close socket and finish reading
 
 
 unsigned long lastEmotionMillis = millis();
 unsigned long emotionInterval = 900000; // 15 mins
 
 unsigned long lastActionMillis = millis();
-unsigned long sleepTimer = 450000; // 5mins
+const unsigned long sleepTimer = 450000; // 5mins
 
 long lastRelayMillis = millis(); 
-long relayInterval = 1000; // stay off for 1 sec
+const long relayInterval = 1000; // stay off for 1 sec
 boolean powerAllow = true;
 
 int state = 0; 
 int failure = 0;
 float happiness = 0;
 float prevHappiness = -1;
-int angryTres = 4;
+const int angryTres = 4;
 
 int maxResist = 5;
 int resistCount = 0;
@@ -94,7 +89,7 @@ int resistCount = 0;
 int ledMode = 1; // 0-3 0=off, 1=getting network, 2= normal, 3=problemo
 boolean servoRunning = false;
 int emotionServoMode = 0;
-boolean firstExpress = 0;
+int firstExpress = 0;
 
 boolean toggle2 = 0;
 int ledCounter = 0;
@@ -113,8 +108,6 @@ int port;
 #define READ_USAGE 4
 #define GET_HAPPINESS 5
 #define READ_HAPPINESS 6
-#define SUB_HAPPINESS 7
-#define WAIT_HAPPINESS 8
 #define COMPARE_VAR 9
 #define MAIN_LOOP 10
 #define NETWORK_CONFIG 11
@@ -139,13 +132,7 @@ void setup(){
   Serial.println(F("  starting up.. "));
   pinMode(relayPin, OUTPUT);
   setupLed();
-  state = SETUP_HARDWARE;
-  if(socketServer){
-    port = 8081; 
-  }
-  else{
-    port = 80;
-  }
+  setupPort();
 }
 
 
@@ -260,30 +247,6 @@ void loop(){
 
     break;
 
-  case SUB_HAPPINESS: // sent subscription
-    //////
-    state = COMPARE_VAR;
-    //////
-    ledMode = 1;
-    //cosmSocketGet(avgFeed, happinessStream,"happinessSub1", "subscribe");
-    //cosmSocketSub(avgFeed, happinessStream,"happinessSub2");
-    //Serial.println(F("sent subscription to cosm.."));
-    lastAttempMillis = millis();
-    state ++;
-    break;
-
-  case WAIT_HAPPINESS: // and wait for 200 ok (check in decoder)
-    ledMode = 1;
-    if(millis() - lastAttempMillis > 5000){
-      //Serial.println(F("waiting too long, asking again"));
-      state --;
-      failure ++;
-      if(failure > 10){
-        forceReset();
-      }
-    }
-    break;
-
   case COMPARE_VAR: // compare and adjust local and online value
     ledMode = 1;
     adjustValue();
@@ -318,7 +281,7 @@ void loop(){
       checkResponse();
     }
     else{
-      char c = client.read();
+      char c = client.read(); // just empty the buffer
     }
   }
 
@@ -347,62 +310,65 @@ void loop(){
 
 
 void mainLoop(){
-
+  
+  // If we aren't in the middle of a servo action or memory reading, update the current reading
   if(!servoRunning && !isReading){
     checkCurrent();   //current sensing 
   }
-
+  
+  // Then check connectivity, whether to put the toaster into sleep mode due to inactivity, and whether power should be on or off
   checkConnection();
   checkSleep();
   powerControl();
 
-  if(!toastInProgress){
+  // If we're not toasting, express any emotions waiting
+  if(!isToasting()){
     moveServo();
     expressEmotion();
   }
 
+  // If the toaster has just started or just finished toasting, update as necessary
+  if(prevToastInProgress != isToasting()){
 
-  if(prevToastInProgress != toastInProgress){
-
-    if(toastInProgress){
-      Serial.print("lever is pressed..");
+    if(isToasting()){
+      
+      Serial.print("Lever is pressed! ");
+      
       if(resistCount < maxResist){
         resistCount ++;
         cutPower();
-        Serial.print(F("but the toaster is still pissed, resisCount = "));
+        Serial.print(F("But the toaster is still pissed, resisCount = "));
         Serial.println(resistCount);
       }
       else{
         resistCount = 0;
         totalUsage ++;
-        saveLocalUsage();
-        Serial.print(F("total usage is "));
+        saveLocalUsage(totalUsage);
+        Serial.print(F("Total usage is now: "));
         Serial.println(totalUsage);
-        cosmSocketPut3(localFeedID, 0, totalUsage, 5, 1, -1, 0, "leverPressed");
-        //cosmPut3(localFeedID, 0, totalUsage, 4, happiness, 5, 1);
+        cosmPut3(localFeedID, 0, totalUsage, 4, happiness, 5, 1, "leverPressed");
       }
 
-    }
-    else{
-      Serial.println(F("lever is released"));
-      cosmSocketPut3(localFeedID, 5, 0, -1, -1, -1, -1, "leverReleased");
-      //cosmPut3(localFeedID, 0, totalUsage, 4, happiness, 5, 0);
+    } 
+    else {
+      
+      Serial.println(F("Lever is released"));
+      cosmPut3(localFeedID, 0, totalUsage, 4, happiness, 5, 1, "leverReleased");
       lastAttempMillis = millis();
+      
     }
 
-    prevToastInProgress = toastInProgress;
+    prevToastInProgress = isToasting();
   }
 
 
-
-
-
+  // If our happiness has changed, calculate how many times to resist being used and wiggle your arm
   if(prevHappiness != happiness){
 
     maxResist = resistCal();
     emotionCal();    
     if(happiness < prevHappiness){
-      if(!toastInProgress){
+      if(isToasting()){
         startServo(0);
         lastEmotionMillis = millis();
       }
@@ -414,25 +380,3 @@ void mainLoop(){
 
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

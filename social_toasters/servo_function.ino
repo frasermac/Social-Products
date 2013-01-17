@@ -51,8 +51,9 @@ void mapServo(){
     svLowest = 180;
     svHighest = 0;
   }else{
-    svLowest = 0;
-    svHighest = 180;
+    // change after test with left servo
+    svLowest = 180;
+    svHighest = 0;
   }
 
   for(int i=0; i< movementModeNo; i++){

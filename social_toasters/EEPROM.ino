@@ -1,23 +1,22 @@
 
-char tmpSSID[26];
-char tmpPassphrase[26];
-int endLineCode = 44; // ","
-int startConfigCode = 47;
+char tmpSSID[26];         // temp variable from reading, 25 is the max size WiFly can handle
+char tmpPassphrase[26];  // temp variable from reading, 25 is the max size WiFly can handle
+const int endLineCode = 44; // ","
 int tmpIndex = 0;
 int tempReadVal;
-int localUsageAddress = 53; // 53 and 54
+const int localUsageAddress = 53; // 53 and 54
 
 void serialFeedback(){
 
   int inByte = Serial.read();
-  Serial.print(char(inByte));
+  //Serial.print(char(inByte));
   switch (networkConfigState){
 
   case 0:
     // any caractor will trigger to 1
     networkConfigState++;
     state = NETWORK_CONFIG;
-    //Serial.println(F("network config started, please input SSID"));
+    Serial.println();
     break;
 
   case 1:
@@ -50,12 +49,12 @@ void serialFeedback(){
 
       tmpPassphrase[tmpIndex] = '\0';
       tmpIndex = 0;
-      Serial.print(F("received passphease: "));
+      Serial.print(F("  received passphease : "));
       Serial.print(tmpPassphrase);
       for (int i = 0; i < 26; i++){
         EEPROM.write(i+26, tmpPassphrase[i]);
       }
-      //Serial.println(F("config saved, restarting...."));
+      Serial.println(F("  config saved.."));
       forceReset(); 
     }
 
@@ -91,15 +90,15 @@ void readEEPROM(){
 
   int r1= EEPROM.read(localUsageAddress);
   int r2= EEPROM.read(localUsageAddress+1);
-  if(r1 == 255 && r2 == 255){
+  if(r1 == 255 && r2 == 255){ // this is for the first time when those 2 bytes are still empty
     localTotalUsage = 0;
     totalUsage = 0;
-    saveLocalUsage();
+    saveLocalUsage(totalUsage);
   }else{
     localTotalUsage = r1*256 + r2;
   }
   
-  Serial.print(F(", local usage:"));
+  Serial.print(F(", local usage :"));
   Serial.println(localTotalUsage);
   
 //  Serial.print(F("    "));
@@ -110,13 +109,14 @@ void readEEPROM(){
 }
 
 
-void saveLocalUsage(){
+void saveLocalUsage(int usage){
 
-  int r1 = totalUsage/256;
-  int r2 = totalUsage - (r1*256);
+  int r1 = usage/256;
+  int r2 = usage - (r1*256);
   EEPROM.write(localUsageAddress, r1);
   EEPROM.write(localUsageAddress+1, r2);
-  Serial.println(F("totalUsage saved"));
+  Serial.print(F("totalUsage updated in internal memory to: "));
+  Serial.println(usage);
   
 }
 

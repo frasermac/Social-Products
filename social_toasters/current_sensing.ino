@@ -33,7 +33,6 @@ void setupCurrentCoil() {
 void checkCurrent(){
 
   currentSense[currentCoilIndex] = emon1.calcIrms(1480);    // Add an element to the current sample array
-  toastInProgress = isToasting();
 
   currentCoilIndex++;
   if (currentCoilIndex >= numReadings) {
@@ -57,16 +56,9 @@ boolean isToasting() {
 //  Serial.println();
 
   if (average >= 20) {
-    if (toastInProgress == false) {
-      toastInProgress = true;
-    }
     return true;
   }
   else {
-    if (toastInProgress == true) {
-      toastInProgress = false;
-    }
     return false;
   }
 }
-

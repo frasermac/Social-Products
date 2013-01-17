@@ -5,7 +5,7 @@ void adjustValue(){
     Serial.print(F("difference in totalUsage, use the larger one: ")); 
     Serial.println(totalUsage);
   }
-  saveLocalUsage();
+  saveLocalUsage(totalUsage);
 }
 
 
@@ -81,7 +81,7 @@ void checkSleep(){
   if(millis() - lastActionMillis > sleepTimer){
 
     if(!sleeping){
-      Serial.println(F("I'm sleeping now"));
+      Serial.println(F("Going to sleep now"));
       sleepRad = PI/2;
     }
     sleeping = true;
@@ -89,7 +89,7 @@ void checkSleep(){
   }
   else{
     if(sleeping){
-      Serial.println(F("just woke up"));
+      Serial.println(F("Woke up"));
     }
     sleeping = false;
     ledMode = 2;
@@ -97,11 +97,12 @@ void checkSleep(){
 
 }
 boolean getSwitch = false;
+
 // checkConnection() sends a fake update to the toaster's feed every 'check200Interval' milliseconds
 void checkConnection(){
   int a = 0;
   if(millis() - lastAttempMillis > check200Interval){
-    if(toastInProgress){
+    if(isToasting()){
       a = 1;
     }
     else{

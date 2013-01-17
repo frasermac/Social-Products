@@ -1,5 +1,13 @@
-//
-//
+void setupPort(){
+  if(socketServer){
+    port = 8081; 
+  }
+  else{
+    port = 80;
+  }
+  
+}
+
 void cosmSocketPut3(long feed, int stream1, int data1, int stream2, int data2, int stream3, int data3, String token){
   Serial.print(F("+"));
   //Serial.println("cosmSocketPut");
