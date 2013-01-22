@@ -3,7 +3,7 @@
 #include "EmonLib.h"                   // Include Emon Library
 #include <EEPROM.h>
 
-const int toasterID = 4; // start from 1
+const int toasterID = 5; // start from 1
 const boolean servoLeft = true; // servo position facing front of the toaster
 const boolean report = false; // debugging network
 const boolean servoPrint = false; // debugging servo
@@ -13,11 +13,11 @@ const int happinessStream = 2 + toasterID;
 
 
 const long toasterFeed[5] = {
-  96617, 96618, 96620, 96621, 96622}; 
+  98446, 98447, 98448, 98449, 98450}; 
 
 const long localFeedID = toasterFeed[toasterID-1];
-//long localFeedID = 96618;
-const long avgFeed = 96616;
+//const long localFeedID = 98425;
+const long avgFeed = 98451;
 
 String API = "o9DJZaSWEcrSlqJjuwrJLCVpcN2SAKxXcmkrVUc1Q2c0TT0g";
 
@@ -63,8 +63,8 @@ const int maxWiflyFailure  = 5;
 
 unsigned long lastAttempMillis = millis();
 unsigned long last200Millis = millis();
-const unsigned long check200Interval = 10000;
-const unsigned long waitingLimit = 3000; // if doesn't get the feedback in 3 secs, close socket and finish reading
+const unsigned long check200Interval = 15000;
+const unsigned long waitingLimit = 5000; // if doesn't get the feedback in 3 secs, close socket and finish reading
 
 
 unsigned long lastEmotionMillis = millis();
@@ -76,6 +76,9 @@ const unsigned long sleepTimer = 450000; // 5mins
 long lastRelayMillis = millis(); 
 const long relayInterval = 1000; // stay off for 1 sec
 boolean powerAllow = true;
+
+long startToastMillis = millis();
+const long minToastMillis = 30000; //at least 30 seconds, in order to count as a toast
 
 int state = 0; 
 int failure = 0;
@@ -277,12 +280,9 @@ void loop(){
     if(state == 8){
       ledMode = 3;
     }
-    if(isReading ){ // expecting something
+
       checkResponse();
-    }
-    else{
-      char c = client.read(); // just empty the buffer
-    }
+
   }
 
   while (Serial.available() > 0) {
@@ -342,20 +342,25 @@ void mainLoop(){
       }
       else{
         resistCount = 0;
-        totalUsage ++;
-        saveLocalUsage(totalUsage);
-        Serial.print(F("Total usage is now: "));
-        Serial.println(totalUsage);
         cosmPut3(localFeedID, 0, totalUsage, 4, happiness, 5, 1, "leverPressed");
+        startToastMillis = millis();
       }
 
     } 
     else {
       
       Serial.println(F("Lever is released"));
-      cosmPut3(localFeedID, 0, totalUsage, 4, happiness, 5, 1, "leverReleased");
-      lastAttempMillis = millis();
+      if(millis() - startToastMillis > minToastMillis) {
+        totalUsage++;
+        saveLocalUsage(totalUsage);
+        Serial.print(F("Total usage is now: "));
+        Serial.println(totalUsage);
+      } else {
+        Serial.print(F("that was a fake toast!"));
+      }
       
+      cosmPut3(localFeedID, 0, totalUsage, 4, happiness, 5, 0, "leverReleased");
+      lastAttempMillis = millis();
     }
 
     prevToastInProgress = isToasting();

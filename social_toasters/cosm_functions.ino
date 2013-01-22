@@ -152,6 +152,7 @@ void cosmGet(long FEED, int stream, String token, String method){
       cosmNormalGet(FEED, stream);
     } 
   }
+  lastAttempMillis = millis();
 }
 
 
@@ -166,7 +167,8 @@ void cosmPut3(long feed, int stream1, int data1, int stream2, int data2, int str
       cosmNormalPut3(feed, stream1, data1, stream2, data2, stream3, data3);;
     } 
   }
-  
+  lastAttempMillis = millis();
+  getSwitch = false;
   
 }
 
